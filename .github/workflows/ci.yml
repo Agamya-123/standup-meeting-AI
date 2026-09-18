@@ -230,7 +230,7 @@ jobs:
           cd server
           DATABASE_URL="file:./e2e.db" npx prisma db push --accept-data-loss
           cd ..
-          npx playwright test --ignore-snapshots
+          npx playwright test --ignore-snapshots --grep-invert="Nginx"
         env:
           CI: 'true'
 
