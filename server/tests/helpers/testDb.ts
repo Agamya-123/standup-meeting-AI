@@ -8,10 +8,39 @@ import { prisma } from '../../src/config/prisma.js';
 import { env } from '../../src/config/env.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { execSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export { prisma };
 
+let testDbSchemaEnsured = false;
+
+export async function ensureTestDbSchema() {
+  if (testDbSchemaEnsured) return;
+  try {
+    await prisma.user.findFirst();
+    testDbSchemaEnsured = true;
+  } catch (err: any) {
+    if (err?.code === 'P2021' || err?.message?.includes('does not exist')) {
+      const serverDir = path.resolve(__dirname, '../../');
+      execSync('npx prisma db push --skip-generate --accept-data-loss', {
+        cwd: serverDir,
+        env: { ...process.env, DATABASE_URL: 'file:./test.db' },
+        stdio: 'pipe',
+      });
+      testDbSchemaEnsured = true;
+    } else {
+      throw err;
+    }
+  }
+}
+
 export async function cleanTestDb() {
+  await ensureTestDbSchema();
   await prisma.notification.deleteMany();
   await prisma.standupReaction.deleteMany();
   await prisma.dailyStandup.deleteMany();

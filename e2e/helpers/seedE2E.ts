@@ -1,5 +1,6 @@
 import path from 'path';
 import dotenv from 'dotenv';
+import { execSync } from 'child_process';
 
 // Configure environment for E2E
 process.env.NODE_ENV = 'e2e';
@@ -16,6 +17,28 @@ const prisma = new PrismaClient({
     },
   },
 });
+
+let e2eDbSchemaEnsured = false;
+
+export async function ensureE2EDbSchema() {
+  if (e2eDbSchemaEnsured) return;
+  try {
+    await prisma.user.findFirst();
+    e2eDbSchemaEnsured = true;
+  } catch (err: any) {
+    if (err?.code === 'P2021' || err?.message?.includes('does not exist')) {
+      const serverDir = path.resolve(__dirname, '../../server');
+      execSync('npx prisma db push --skip-generate --accept-data-loss', {
+        cwd: serverDir,
+        env: { ...process.env, DATABASE_URL: 'file:./e2e.db' },
+        stdio: 'pipe',
+      });
+      e2eDbSchemaEnsured = true;
+    } else {
+      throw err;
+    }
+  }
+}
 
 export const E2E_PASSWORD = 'Password123!';
 
@@ -92,6 +115,7 @@ export const COMPANY_B = {
 };
 
 export async function cleanE2EDb() {
+  await ensureE2EDbSchema();
   await prisma.notification.deleteMany();
   await prisma.standupReaction.deleteMany();
   await prisma.dailyStandup.deleteMany();
