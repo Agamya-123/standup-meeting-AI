@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/index.js';
-import { cleanTestDb, createAuthToken, seedTestCompany } from '../helpers/testDb.js';
+import { cleanTestDb, createAuthToken, prisma, seedTestCompany } from '../helpers/testDb.js';
 
 describe('RBAC and IDOR security regressions', () => {
   beforeEach(async () => {
@@ -114,5 +114,21 @@ describe('RBAC and IDOR security regressions', () => {
     expect(rosterResponse.body.employees.map((employee: any) => employee.id)).toContain(seeded.users.admin.id);
     expect(teamsResponse.status).toBe(200);
     expect(teamsResponse.body.teams.map((team: any) => team.id)).toContain(seeded.teams.backendTeam.id);
+  });
+
+  it('does not transfer designated lead ownership during a name-only edit', async () => {
+    const seeded = await seedTestCompany();
+
+    const response = await request(app)
+      .patch(`/api/auth/employees/${seeded.users.teamLead.id}`)
+      .set('Authorization', `Bearer ${seeded.tokens.admin}`)
+      .send({ name: 'Updated Lead Name' });
+
+    expect(response.status).toBe(200);
+    const team = await prisma.team.findUniqueOrThrow({
+      where: { id: seeded.teams.backendTeam.id },
+      select: { teamLeadId: true }
+    });
+    expect(team.teamLeadId).toBe(seeded.users.teamLead.id);
   });
 });

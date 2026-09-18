@@ -839,7 +839,10 @@ export const updateEmployee = async (req: AuthRequest, res: Response): Promise<v
           data: { teamLeadId: null }
         });
       }
-      if (finalRole === 'TEAM_LEAD' && finalTeamId) {
+      // Do not reassign a team's designated lead on unrelated edits (for
+      // example, changing only the user's name). Lead ownership changes only
+      // when the role or team assignment changes.
+      if (finalRole === 'TEAM_LEAD' && finalTeamId && (roleChanged || teamChanged)) {
         await tx.team.update({
           where: { id: finalTeamId },
           data: { teamLeadId: targetUserId }
