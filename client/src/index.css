@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#f8fafc] text-slate-900 dark:bg-[#080b11] dark:text-slate-100 transition-colors duration-200 antialiased selection:bg-blue-500 selection:text-white min-h-screen;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+}
+
+/* Glassmorphism Classes */
+@layer components {
+  .glass-panel {
+    @apply bg-white/75 dark:bg-[#0f141f]/70 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 shadow-sm dark:shadow-2xl transition-all;
+  }
+
+  .glass-card {
+    @apply bg-white/80 dark:bg-[#121826]/75 backdrop-blur-md border border-slate-200/70 dark:border-white/10 shadow-sm hover:shadow-md dark:shadow-xl dark:hover:border-blue-500/30 transition-all duration-200;
+  }
+
+  .glass-card-interactive {
+    @apply bg-white/80 dark:bg-[#121826]/75 backdrop-blur-md border border-slate-200/70 dark:border-white/10 shadow-sm hover:shadow-lg dark:hover:border-blue-500/40 hover:-translate-y-0.5 transition-all duration-200;
+  }
+
+  .glass-input {
+    @apply bg-slate-50/90 dark:bg-[#0a0e17]/80 backdrop-blur-md border border-slate-200 dark:border-white/10 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all;
+  }
+
+  .glass-pill {
+    @apply bg-slate-100/80 dark:bg-white/5 backdrop-blur-md border border-slate-200/60 dark:border-white/10;
+  }
+
+  .glass-dropdown {
+    @apply bg-white/95 dark:bg-[#111724]/95 backdrop-blur-2xl border border-slate-200 dark:border-white/10 shadow-2xl;
+  }
+}
+
+/* Custom ambient background glow */
+.ambient-glow-bg {
+  background-image:
+    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.06) 0px, transparent 50%),
+    radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.04) 0px, transparent 50%);
+}
+
+.dark .ambient-glow-bg {
+  background-image:
+    radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(147, 51, 234, 0.10) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(6, 182, 212, 0.06) 0px, transparent 50%);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-700/60 rounded-full hover:bg-slate-400 dark:hover:bg-slate-600;
+}
+
+/* Pulse Beacon */
+@keyframes beacon {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.animate-beacon {
+  animation: beacon 2s infinite ease-in-out;
+}

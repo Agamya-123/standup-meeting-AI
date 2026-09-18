@@ -1,0 +1,232 @@
+name: CI/CD Pipeline & Automated Security Gates
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  DATABASE_URL: 'file:./test.db'
+  JWT_SECRET: 'ci-pipeline-secure-test-jwt-secret-32-characters-minimum!'
+  ALLOWED_ORIGINS: 'http://localhost,http://localhost:80,http://127.0.0.1,http://localhost:5173'
+
+jobs:
+  # =========================================================================
+  # 1. STATIC QUALITY & SECURITY GATES
+  # =========================================================================
+  static-quality-and-security:
+    name: Static Quality & Security Gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install Server Dependencies
+        run: npm ci --prefix server
+
+      - name: Install Client Dependencies
+        run: npm ci --prefix client
+
+      - name: Prisma Schema Validation & Client Generation
+        run: |
+          cd server
+          npx prisma validate
+          npx prisma generate
+
+      - name: TypeScript Compilation Check (Server)
+        run: npm run build --prefix server
+
+      - name: TypeScript & Vite Build Check (Client)
+        run: npm run build --prefix client
+
+      - name: Backend Vitest Unit & Integration Tests (with Coverage)
+        run: |
+          cd server
+          npx vitest run --coverage
+
+      - name: Frontend Vitest Component & Context Tests (with Coverage)
+        run: |
+          cd client
+          npx vitest run --coverage
+
+      - name: Secrets Detection Scan (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: false
+
+      - name: Static Application Security Testing (Semgrep SAST)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+            p/javascript
+            p/typescript
+        continue-on-error: false
+
+      - name: Dependency Vulnerability Audit (Production Dependencies)
+        run: |
+          echo "Auditing production dependencies for server..."
+          npm audit --omit=dev --prefix server --audit-level=high
+          echo "Auditing production dependencies for client..."
+          npm audit --omit=dev --prefix client --audit-level=high
+
+      - name: Upload Test Coverage Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-coverage-reports
+          path: |
+            server/coverage/
+            client/coverage/
+          retention-days: 14
+
+  # =========================================================================
+  # 2. DOCKER BUILD & CONTAINER RUNTIME VERIFICATION
+  # =========================================================================
+  docker-build-and-runtime:
+    name: Docker Build & Production Runtime Verification
+    runs-on: ubuntu-latest
+    needs: static-quality-and-security
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Dependencies & Build Frontend SPA Artifacts
+        run: |
+          npm ci --prefix client
+          npm run build --prefix client
+
+      - name: Build Backend Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          push: false
+          tags: standup-meeting-backend:latest
+          load: true
+
+      - name: Launch Containerized Stack (Docker Compose)
+        run: |
+          docker compose up -d
+          echo "Waiting for containers to become healthy..."
+          timeout 60 bash -c 'until docker compose ps | grep "backend" | grep -q "healthy"; do sleep 2; done' || {
+            echo "Backend container failed to become healthy in 60s"
+            docker compose logs
+            exit 1
+          }
+
+      - name: Verify Container Health & Readiness Probes via Nginx
+        run: |
+          echo "Verifying Liveness Probe via Nginx reverse proxy..."
+          LIVE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/api/health/live)
+          if [ "$LIVE_STATUS" != "200" ]; then
+            echo "Liveness probe failed with HTTP $LIVE_STATUS"
+            docker compose logs
+            exit 1
+          fi
+
+          echo "Verifying Readiness Probe via Nginx reverse proxy..."
+          READY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/api/health)
+          if [ "$READY_STATUS" != "200" ]; then
+            echo "Readiness probe failed with HTTP $READY_STATUS"
+            docker compose logs
+            exit 1
+          fi
+
+          echo "Container runtime probes verified successfully."
+
+      - name: Teardown Docker Stack
+        if: always()
+        run: docker compose down -v
+
+  # =========================================================================
+  # 3. PRODUCTION-LIKE E2E & SECURITY REGRESSION (PLAYWRIGHT)
+  # =========================================================================
+  production-e2e-and-security:
+    name: Production E2E & Security Regression Gates
+    runs-on: ubuntu-latest
+    needs: docker-build-and-runtime
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install Client Dependencies & Build Dist
+        run: |
+          npm ci --prefix client
+          npm run build --prefix client
+
+      - name: Install Server Dependencies
+        run: npm ci --prefix server
+
+      - name: Install Playwright Browsers & OS Dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Launch Production Docker Compose Stack
+        run: |
+          docker compose up -d --build
+          echo "Awaiting stack readiness..."
+          sleep 5
+          for i in {1..30}; do
+            if curl -s http://localhost/api/health | grep -q '"database":"connected"'; then
+              echo "Stack is healthy and database is connected!"
+              break
+            fi
+            echo "Waiting for stack... ($i/30)"
+            sleep 2
+          done
+
+      - name: Execute Playwright E2E & Production Verification Suite
+        run: npx playwright test
+        env:
+          PLAYWRIGHT_BASE_URL: 'http://localhost'
+          CI: 'true'
+
+      - name: Upload Playwright Test Report & Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Teardown Docker Stack
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id          String       @id @default(uuid())
+  name        String
+  slug        String       @unique
+  domain      String?
+  logo        String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  users       User[]
+  departments Department[]
+  teams       Team[]
+  auditLogs   AuditLog[]
+}
+
+model Department {
+  id          String       @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  teams       Team[]
+  users       User[]
+  auditLogs   AuditLog[]
+
+  @@index([companyId])
+}
+
+model Team {
+  id           String             @id @default(uuid())
+  companyId    String
+  departmentId String?
+  name         String
+  department   String?            // Legacy string support / cached name
+  description  String?
+  managerId    String?
+  teamLeadId   String?
+  isActive     Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  dept         Department?        @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  manager      User?              @relation("ManagerTeams", fields: [managerId], references: [id], onDelete: SetNull)
+  teamLead     User?              @relation("LeadTeams", fields: [teamLeadId], references: [id], onDelete: SetNull)
+  members      TeamMember[]
+  userMembers  User[]             @relation("UserDirectTeam")
+  standups     DailyStandup[]
+  accessGrants DepartmentAccess[]
+  auditLogs    AuditLog[]
+
+  @@index([companyId])
+  @@index([departmentId])
+}
+
+model User {
+  id                 String             @id @default(uuid())
+  companyId          String
+  departmentId       String?
+  teamId             String?
+  employeeId         String?            // Optional custom company employee code (e.g. EMP-101)
+  name               String
+  email              String             @unique
+  passwordHash       String
+  role               String             @default("TEAM_MEMBER") // ADMIN, MANAGER, TEAM_LEAD, TEAM_MEMBER, MEMBER
+  avatar             String?
+  isActive           Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  company            Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department         Department?        @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  team               Team?              @relation("UserDirectTeam", fields: [teamId], references: [id], onDelete: SetNull)
+  memberships        TeamMember[]
+  managedTeams       Team[]             @relation("ManagerTeams")
+  leadTeams          Team[]             @relation("LeadTeams")
+  standups           DailyStandup[]
+  reactions          StandupReaction[]
+  notifications      Notification[]     @relation("UserNotifications")
+  sentNotifications  Notification[]     @relation("SentNotifications")
+  resolvedBlockers   DailyStandup[]     @relation("ResolvedBlockers")
+  departmentAccesses DepartmentAccess[] @relation("UserDepartmentAccess")
+  grantedAccesses    DepartmentAccess[] @relation("GrantedDepartmentAccess")
+  auditLogs          AuditLog[]         @relation("ActorAuditLogs")
+
+  @@index([companyId])
+  @@index([departmentId])
+  @@index([teamId])
+}
+
+model DepartmentAccess {
+  id            String    @id @default(uuid())
+  teamId        String
+  userId        String
+  grantedById   String?
+  reason        String?
+  status        String    @default("PENDING") // PENDING, APPROVED, REJECTED, REVOKED
+  durationHours Int       @default(24)        // e.g. 24, 72, 168 (7 days)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  team          Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user          User      @relation("UserDepartmentAccess", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy     User?     @relation("GrantedDepartmentAccess", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, userId])
+}
+
+model TeamMember {
+  id       String   @id @default(uuid())
+  teamId   String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+}
+
+model DailyStandup {
+  id                    String            @id @default(uuid())
+  userId                String
+  teamId                String
+  date                  String            // YYYY-MM-DD
+  yesterdayUpdates      String            // Stringified JSON array of bullet strings
+  todayPlans            String            // Stringified JSON array of bullet strings
+  blockers              String?           // Stringified JSON array or text
+  blockerLevel          String            @default("NONE") // NONE, MINOR, CRITICAL
+  blockerStatus         String            @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED
+  blockerResolutionNote String?
+  blockerResolvedById   String?
+  blockerResolvedAt     DateTime?
+  submittedAt           DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team                  Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  reactions             StandupReaction[]
+  resolvedBy            User?             @relation("ResolvedBlockers", fields: [blockerResolvedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, date])
+}
+
+model StandupReaction {
+  id        String       @id @default(uuid())
+  standupId String
+  userId    String
+  emoji     String       // 🚀, 🔥, 👏, 👍, ❤️
+  createdAt DateTime     @default(now())
+
+  standup   DailyStandup @relation(fields: [standupId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([standupId, userId, emoji])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  senderId  String?
+  title     String
+  message   String
+  type      String   @default("INFO") // BLOCKER_RESOLVED, BLOCKER_ACKNOWLEDGED, REACTION, REMINDER
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  sender    User?    @relation("SentNotifications", fields: [senderId], references: [id], onDelete: SetNull)
+}
+
+model AuditLog {
+  id           String      @id @default(uuid())
+  companyId    String
+  actorId      String
+  action       String      // CREATE_DEPARTMENT, UPDATE_DEPARTMENT, DELETE_DEPARTMENT, CREATE_MANAGER, UPDATE_MANAGER, CREATE_TEAM, UPDATE_TEAM, DELETE_TEAM, CREATE_TEAM_LEAD, UPDATE_TEAM_LEAD, CREATE_TEAM_MEMBER, UPDATE_TEAM_MEMBER, MOVE_USER, MOVE_TEAM, DEACTIVATE_USER, DEACTIVATE_TEAM, DEACTIVATE_DEPARTMENT, etc.
+  targetType   String      // DEPARTMENT, TEAM, USER
+  targetId     String?
+  departmentId String?
+  teamId       String?
+  metadata     String?     // JSON string
+  timestamp    DateTime    @default(now())
+
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actor        User        @relation("ActorAuditLogs", fields: [actorId], references: [id], onDelete: Cascade)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  team         Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([actorId])
+  @@index([timestamp])
+}

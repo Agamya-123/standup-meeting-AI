@@ -1,0 +1,12 @@
+node_modules
+dist
+test-results
+coverage
+tests
+e2e
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+.DS_Store

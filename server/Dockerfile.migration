@@ -1,0 +1,21 @@
+# Dedicated container for running Prisma Migrations
+FROM node:22-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache openssl dumb-init
+
+# Install dev dependencies to have the Prisma CLI available
+COPY package*.json ./
+RUN npm ci
+
+COPY prisma ./prisma
+
+RUN mkdir -p /app/data && chown -R node:node /app
+
+ENV NODE_ENV=production
+ENV DATABASE_URL="file:/app/data/production.db"
+
+USER node
+
+CMD ["npx", "prisma", "migrate", "deploy"]
