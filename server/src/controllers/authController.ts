@@ -99,7 +99,13 @@ export const registerCompany = async (req: AuthRequest, res: Response): Promise<
       }
     });
 
-    // Add admin to the initial team
+    // Keep the user's primary-team field and membership in sync with the
+    // initial team. The authenticated user's live database record controls
+    // role-scoped visibility after a role change.
+    await prisma.user.update({
+      where: { id: adminUser.id },
+      data: { teamId: defaultTeam.id }
+    });
     await prisma.teamMember.create({
       data: {
         teamId: defaultTeam.id,
@@ -556,11 +562,24 @@ export const getCompanyEmployees = async (req: AuthRequest, res: Response): Prom
       }
       whereClause.departmentId = caller.departmentId;
     } else if (callerRole === 'TEAM_LEAD' || callerRole === 'TEAM_MEMBER') {
-      if (!caller.teamId) {
+      const memberships = await prisma.teamMember.findMany({
+        where: { userId: caller.id },
+        select: { teamId: true }
+      });
+      const accessibleTeamIds = [...new Set([
+        ...(caller.teamId ? [caller.teamId] : []),
+        ...memberships.map((membership) => membership.teamId)
+      ])];
+
+      if (accessibleTeamIds.length === 0) {
         res.json({ employees: [] });
         return;
       }
-      whereClause.teamId = caller.teamId;
+
+      whereClause.OR = [
+        { teamId: { in: accessibleTeamIds } },
+        { memberships: { some: { teamId: { in: accessibleTeamIds } } } }
+      ];
     }
 
     const employees = await prisma.user.findMany({
@@ -775,39 +794,60 @@ export const updateEmployee = async (req: AuthRequest, res: Response): Promise<v
       finalRole = normalizeRole(role);
     }
 
-    // Update user
-    const updatedUser = await prisma.user.update({
-      where: { id: targetUserId },
-      data: {
-        ...(name ? { name: name.trim() } : {}),
-        role: finalRole,
-        departmentId: finalDepartmentId,
-        teamId: finalTeamId
-      },
-      include: {
-        department: { select: { id: true, name: true } },
-        team: { select: { id: true, name: true } }
-      }
-    });
+    const roleChanged = finalRole !== targetUser.role;
+    const teamChanged = finalTeamId !== targetUser.teamId;
 
-    // Synchronize TeamMember table
-    if (teamId !== undefined) {
-      // Remove previous memberships if moving to a new team or no team
-      if (finalTeamId !== targetUser.teamId) {
-        await prisma.teamMember.deleteMany({
-          where: { userId: targetUserId }
-        }).catch(() => {});
-
-        if (finalTeamId) {
-          await prisma.teamMember.create({
-            data: {
-              teamId: finalTeamId,
-              userId: targetUserId
-            }
-          }).catch(() => {});
+    // Keep the primary assignment and TeamMember relation atomic. A user who
+    // has been assigned to a team must never retain an orphaned membership or
+    // a null direct team reference after a role transition.
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: targetUserId },
+        data: {
+          ...(name ? { name: name.trim() } : {}),
+          role: finalRole,
+          departmentId: finalDepartmentId,
+          teamId: finalTeamId
+        },
+        include: {
+          department: { select: { id: true, name: true } },
+          team: { select: { id: true, name: true } }
         }
+      });
+
+      if (teamChanged) {
+        await tx.teamMember.deleteMany({ where: { userId: targetUserId } });
+        if (finalTeamId) {
+          await tx.teamMember.create({
+            data: { teamId: finalTeamId, userId: targetUserId }
+          });
+        }
+      } else if (finalTeamId && (roleChanged || teamId !== undefined)) {
+        await tx.teamMember.upsert({
+          where: { teamId_userId: { teamId: finalTeamId, userId: targetUserId } },
+          update: {},
+          create: { teamId: finalTeamId, userId: targetUserId }
+        });
       }
-    }
+
+      // A designated lead must also be represented by the team relation used
+      // by team listings and access checks. Clear the former lead only when
+      // this user is explicitly moved away from that team or demoted.
+      if (targetUser.teamId && (teamChanged || finalRole !== 'TEAM_LEAD')) {
+        await tx.team.updateMany({
+          where: { teamLeadId: targetUserId },
+          data: { teamLeadId: null }
+        });
+      }
+      if (finalRole === 'TEAM_LEAD' && finalTeamId) {
+        await tx.team.update({
+          where: { id: finalTeamId },
+          data: { teamLeadId: targetUserId }
+        });
+      }
+
+      return updated;
+    });
 
     await logAuditEvent({
       companyId,

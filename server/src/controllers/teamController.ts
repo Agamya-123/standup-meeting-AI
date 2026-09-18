@@ -31,26 +31,42 @@ export const getTeams = async (req: AuthRequest, res: Response): Promise<void> =
       }
       whereClause.departmentId = user.departmentId;
     } else if (role === 'TEAM_LEAD') {
-      const allowedTeamIds: string[] = [];
-      if (user.teamId) allowedTeamIds.push(user.teamId);
-      const ledTeams = await prisma.team.findMany({
-        where: { companyId: user.companyId, teamLeadId: user.id, isActive: true },
-        select: { id: true }
-      });
-      ledTeams.forEach((t) => {
-        if (!allowedTeamIds.includes(t.id)) allowedTeamIds.push(t.id);
-      });
+      const [ledTeams, memberships] = await Promise.all([
+        prisma.team.findMany({
+          where: { companyId: user.companyId, teamLeadId: user.id, isActive: true },
+          select: { id: true }
+        }),
+        prisma.teamMember.findMany({
+          where: { userId: user.id },
+          select: { teamId: true }
+        })
+      ]);
+      const allowedTeamIds = [...new Set([
+        ...(user.teamId ? [user.teamId] : []),
+        ...ledTeams.map((team) => team.id),
+        ...memberships.map((membership) => membership.teamId)
+      ])];
+
       if (allowedTeamIds.length === 0) {
         res.json({ teams: [] });
         return;
       }
       whereClause.id = { in: allowedTeamIds };
     } else if (role === 'TEAM_MEMBER') {
-      if (!user.teamId) {
+      const memberships = await prisma.teamMember.findMany({
+        where: { userId: user.id },
+        select: { teamId: true }
+      });
+      const allowedTeamIds = [...new Set([
+        ...(user.teamId ? [user.teamId] : []),
+        ...memberships.map((membership) => membership.teamId)
+      ])];
+
+      if (allowedTeamIds.length === 0) {
         res.json({ teams: [] });
         return;
       }
-      whereClause.id = user.teamId;
+      whereClause.id = { in: allowedTeamIds };
     }
 
     const teams = await prisma.team.findMany({

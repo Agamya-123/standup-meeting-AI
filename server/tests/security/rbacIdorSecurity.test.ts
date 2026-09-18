@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/index.js';
-import { cleanTestDb, seedTestCompany } from '../helpers/testDb.js';
+import { cleanTestDb, createAuthToken, seedTestCompany } from '../helpers/testDb.js';
 
 describe('RBAC and IDOR security regressions', () => {
   beforeEach(async () => {
@@ -76,5 +76,43 @@ describe('RBAC and IDOR security regressions', () => {
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual(expect.objectContaining({ status: 'error' }));
+  });
+
+  it('keeps an administrator visible after changing them to a team lead', async () => {
+    const seeded = await seedTestCompany();
+
+    const updateResponse = await request(app)
+      .patch(`/api/auth/employees/${seeded.users.admin.id}`)
+      .set('Authorization', `Bearer ${seeded.tokens.admin}`)
+      .send({
+        role: 'TEAM_LEAD',
+        departmentId: seeded.departments.engDept.id,
+        teamId: seeded.teams.backendTeam.id,
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.employee).toEqual(expect.objectContaining({
+      role: 'TEAM_LEAD',
+      departmentId: seeded.departments.engDept.id,
+      teamId: seeded.teams.backendTeam.id,
+    }));
+
+    const freshLeadToken = createAuthToken({
+      ...seeded.users.admin,
+      role: 'TEAM_LEAD',
+      departmentId: seeded.departments.engDept.id,
+      teamId: seeded.teams.backendTeam.id,
+    });
+    const rosterResponse = await request(app)
+      .get('/api/auth/employees')
+      .set('Authorization', `Bearer ${freshLeadToken}`);
+    const teamsResponse = await request(app)
+      .get('/api/teams')
+      .set('Authorization', `Bearer ${freshLeadToken}`);
+
+    expect(rosterResponse.status).toBe(200);
+    expect(rosterResponse.body.employees.map((employee: any) => employee.id)).toContain(seeded.users.admin.id);
+    expect(teamsResponse.status).toBe(200);
+    expect(teamsResponse.body.teams.map((team: any) => team.id)).toContain(seeded.teams.backendTeam.id);
   });
 });
