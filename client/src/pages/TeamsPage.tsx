@@ -67,7 +67,8 @@ const emptyEmployeeForm = {
   employeeId: '',
   password: '',
   role: 'TEAM_MEMBER' as Role,
-  departmentId: ''
+  departmentId: '',
+  teamId: ''
 };
 
 
@@ -123,7 +124,8 @@ export const TeamsPage: React.FC = () => {
   const [editMemberForm, setEditMemberForm] = useState({
     name: '',
     role: 'TEAM_MEMBER' as Role,
-    departmentId: ''
+    departmentId: '',
+    teamId: ''
   });
 
   // ADMIN, MANAGER and TEAM_LEAD can all provision accounts (backend enforces the
@@ -158,7 +160,8 @@ export const TeamsPage: React.FC = () => {
     setEditMemberForm({
       name: fullUser.name || '',
       role: (fullUser.role as Role) || 'TEAM_MEMBER',
-      departmentId: fullUser.departmentId || ''
+      departmentId: fullUser.departmentId || '',
+      teamId: fullUser.teamId || ''
     });
     setShowEditMemberModal(true);
   };
@@ -172,7 +175,8 @@ export const TeamsPage: React.FC = () => {
       const payload = {
         name: editMemberForm.name.trim(),
         role: editMemberForm.role,
-        departmentId: editMemberForm.departmentId || null
+        departmentId: editMemberForm.departmentId || null,
+        teamId: editMemberForm.teamId || null
       };
 
       const res = await api.patch(`/auth/employees/${selectedMember.id}`, payload);
@@ -1208,35 +1212,68 @@ export const TeamsPage: React.FC = () => {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-blue-500" />
-                    <span>Assign to Department</span>
-                  </label>
-                  <select
-                    value={editMemberForm.departmentId}
-                    onChange={(e) => {
-                      setEditMemberForm({
-                        ...editMemberForm,
-                        departmentId: e.target.value
-                      });
-                    }}
-                    className="glass-input w-full cursor-pointer"
-                    disabled={currentUser?.role === 'MANAGER' && !!currentUser.departmentId}
-                  >
-                    {departments.length === 0 ? (
-                      <option value="">No departments created</option>
-                    ) : (
-                      <>
-                        <option value="">-- No Department (Direct Company) --</option>
-                        {departments.map((dept) => (
-                          <option key={dept.id} value={dept.id}>
-                            {dept.name}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Assign to Department</span>
+                    </label>
+                    <select
+                      value={editMemberForm.departmentId}
+                      onChange={(e) => {
+                        const departmentId = e.target.value;
+                        const teamStillBelongsToDepartment = teams.some(
+                          (team) =>
+                            team.id === editMemberForm.teamId &&
+                            (team.dept?.id || team.departmentId) === departmentId
+                        );
+                        setEditMemberForm({
+                          ...editMemberForm,
+                          departmentId,
+                          teamId: teamStillBelongsToDepartment ? editMemberForm.teamId : ''
+                        });
+                      }}
+                      className="glass-input w-full cursor-pointer"
+                      disabled={currentUser?.role === 'MANAGER' && !!currentUser.departmentId}
+                    >
+                      {departments.length === 0 ? (
+                        <option value="">No departments created</option>
+                      ) : (
+                        <>
+                          <option value="">-- No Department (Direct Company) --</option>
+                          {departments.map((dept) => (
+                            <option key={dept.id} value={dept.id}>
+                              {dept.name}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Primary Team</span>
+                    </label>
+                    <select
+                      value={editMemberForm.teamId}
+                      onChange={(e) => setEditMemberForm({ ...editMemberForm, teamId: e.target.value })}
+                      className="glass-input w-full cursor-pointer"
+                    >
+                      <option value="">-- No Team Assignment --</option>
+                      {teams
+                        .filter((team) => {
+                          const teamDepartmentId = team.dept?.id || team.departmentId;
+                          return !editMemberForm.departmentId || teamDepartmentId === editMemberForm.departmentId;
+                        })
+                        .map((team) => (
+                          <option key={team.id} value={team.id}>
+                            {team.name}
                           </option>
                         ))}
-                      </>
-                    )}
-                  </select>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-3">
