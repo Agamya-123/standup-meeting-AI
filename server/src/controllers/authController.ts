@@ -816,10 +816,16 @@ export const updateEmployee = async (req: AuthRequest, res: Response): Promise<v
       });
 
       if (teamChanged) {
-        await tx.teamMember.deleteMany({ where: { userId: targetUserId } });
+        if (targetUser.teamId) {
+          await tx.teamMember.deleteMany({
+            where: { teamId: targetUser.teamId, userId: targetUserId }
+          });
+        }
         if (finalTeamId) {
-          await tx.teamMember.create({
-            data: { teamId: finalTeamId, userId: targetUserId }
+          await tx.teamMember.upsert({
+            where: { teamId_userId: { teamId: finalTeamId, userId: targetUserId } },
+            update: {},
+            create: { teamId: finalTeamId, userId: targetUserId }
           });
         }
       } else if (finalTeamId && (roleChanged || teamId !== undefined)) {
@@ -833,7 +839,7 @@ export const updateEmployee = async (req: AuthRequest, res: Response): Promise<v
       // A designated lead must also be represented by the team relation used
       // by team listings and access checks. Clear the former lead only when
       // this user is explicitly moved away from that team or demoted.
-      if (targetUser.teamId && (teamChanged || finalRole !== 'TEAM_LEAD')) {
+      if (teamChanged || finalRole !== 'TEAM_LEAD') {
         await tx.team.updateMany({
           where: { teamLeadId: targetUserId },
           data: { teamLeadId: null }

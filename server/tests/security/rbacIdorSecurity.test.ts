@@ -131,4 +131,72 @@ describe('RBAC and IDOR security regressions', () => {
     });
     expect(team.teamLeadId).toBe(seeded.users.teamLead.id);
   });
+
+  it('preserves secondary memberships when changing a primary team', async () => {
+    const seeded = await seedTestCompany();
+    const secondaryTeam = await prisma.team.create({
+      data: {
+        companyId: seeded.company.id,
+        departmentId: seeded.departments.mktDept.id,
+        name: 'Secondary Team',
+        department: 'Marketing'
+      }
+    });
+    const newPrimaryTeam = await prisma.team.create({
+      data: {
+        companyId: seeded.company.id,
+        departmentId: seeded.departments.engDept.id,
+        name: 'New Primary Team',
+        department: 'Engineering'
+      }
+    });
+    await prisma.teamMember.create({
+      data: { teamId: secondaryTeam.id, userId: seeded.users.member1.id }
+    });
+
+    const response = await request(app)
+      .patch(`/api/auth/employees/${seeded.users.member1.id}`)
+      .set('Authorization', `Bearer ${seeded.tokens.admin}`)
+      .send({ teamId: newPrimaryTeam.id });
+
+    expect(response.status).toBe(200);
+    const memberships = await prisma.teamMember.findMany({
+      where: { userId: seeded.users.member1.id },
+      select: { teamId: true }
+    });
+    expect(memberships.map(({ teamId }) => teamId)).toEqual(
+      expect.arrayContaining([secondaryTeam.id, newPrimaryTeam.id])
+    );
+    expect(memberships.map(({ teamId }) => teamId)).not.toContain(seeded.teams.backendTeam.id);
+  });
+
+  it('clears stale lead ownership when the user has no primary team', async () => {
+    const seeded = await seedTestCompany();
+    const orphanLead = await prisma.user.create({
+      data: {
+        companyId: seeded.company.id,
+        departmentId: seeded.departments.engDept.id,
+        name: 'Orphan Lead',
+        email: 'orphan.lead@acme.com',
+        passwordHash: 'not-used',
+        role: 'TEAM_LEAD'
+      }
+    });
+    await prisma.team.update({
+      where: { id: seeded.teams.backendTeam.id },
+      data: { teamLeadId: orphanLead.id }
+    });
+
+    const response = await request(app)
+      .patch(`/api/auth/employees/${orphanLead.id}`)
+      .set('Authorization', `Bearer ${seeded.tokens.admin}`)
+      .send({ role: 'TEAM_MEMBER' });
+
+    expect(response.status).toBe(200);
+    const team = await prisma.team.findUniqueOrThrow({
+      where: { id: seeded.teams.backendTeam.id },
+      select: { teamLeadId: true }
+    });
+    expect(team.teamLeadId).toBeNull();
+  });
 });

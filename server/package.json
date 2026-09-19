@@ -2,6 +2,9 @@
   "name": "standup-backend",
   "version": "1.0.0",
   "description": "Backend API for Intelligent Daily Standup",
+  "prisma": {
+    "seed": "tsx prisma/seedDev.ts"
+  },
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
@@ -11,7 +14,7 @@
     "prisma:generate": "prisma generate",
     "prisma:db:push": "prisma db push",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:seed": "tsx prisma/seedDev.ts",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",

@@ -161,7 +161,7 @@ export const TeamsPage: React.FC = () => {
       name: fullUser.name || '',
       role: (fullUser.role as Role) || 'TEAM_MEMBER',
       departmentId: fullUser.departmentId || '',
-      teamId: fullUser.teamId || fullUser.memberships?.[0]?.team.id || ''
+      teamId: fullUser.teamId || ''
     });
     setShowEditMemberModal(true);
   };
