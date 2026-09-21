@@ -7,8 +7,7 @@ import {
   History,
   Users,
   Building2,
-  BadgeCheck,
-  Activity
+  BadgeCheck
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -52,19 +51,13 @@ export const Sidebar: React.FC = () => {
   return (
     <aside className="w-64 bg-white/70 dark:bg-[#0b0e14]/70 backdrop-blur-2xl border-r border-slate-200/80 dark:border-white/10 flex flex-col justify-between shrink-0 h-screen sticky top-0 transition-colors z-20">
       <div>
-        {/* Brand Logo Header & Company Workspace Tag */}
-        <div className="h-16 px-5 flex items-center gap-3 border-b border-slate-200/80 dark:border-white/10">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 shrink-0">
-            <Activity className="w-4 h-4" />
-          </div>
+        {/* Brand Wordmark & Company Workspace Tag */}
+        <div className="h-16 px-5 flex items-center border-b border-slate-200/80 dark:border-white/10">
           <div className="min-w-0 flex-1">
-            <h1 className="font-extrabold text-sm text-slate-900 dark:text-slate-100 tracking-tight leading-none flex items-center gap-1.5">
-              Standup AI
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                PRO
-              </span>
+            <h1 className="font-bold text-[15px] text-slate-900 dark:text-slate-100 tracking-tight leading-none">
+              Standup
             </h1>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1.5 truncate">
               {user?.company?.name || 'Enterprise Workspace'}
             </p>
           </div>

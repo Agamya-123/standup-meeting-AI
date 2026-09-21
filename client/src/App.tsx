@@ -1,5 +1,6 @@
 import React, { useState, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
@@ -8,6 +9,7 @@ import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 
 // Lazy load route pages for production code-splitting and bundle optimization
+const Landing = lazy(() => import('./pages/Landing').then((m) => ({ default: m.Landing })));
 const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })));
 const Register = lazy(() => import('./pages/Register').then((m) => ({ default: m.Register })));
 const ManagerDashboard = lazy(() => import('./pages/ManagerDashboard').then((m) => ({ default: m.ManagerDashboard })));
@@ -58,17 +60,23 @@ const ProtectedLayout: React.FC = () => {
 
           <main className="flex-1 p-5 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
             <Suspense fallback={<RouteLoadingFallback />}>
-              <Routes>
-                <Route
-                  path="/dashboard"
-                  element={isManagerOrAdmin ? <ManagerDashboard /> : <MemberOverview />}
-                />
-                <Route path="/standup" element={<MemberDashboard />} />
-                <Route path="/history" element={<StandupHistoryPage />} />
-                <Route path="/teams" element={<TeamsPage />} />
-                <Route path="/departments" element={<DepartmentsPage />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, ease: 'easeOut' }}
+              >
+                <Routes>
+                  <Route
+                    path="/dashboard"
+                    element={isManagerOrAdmin ? <ManagerDashboard /> : <MemberOverview />}
+                  />
+                  <Route path="/standup" element={<MemberDashboard />} />
+                  <Route path="/history" element={<StandupHistoryPage />} />
+                  <Route path="/teams" element={<TeamsPage />} />
+                  <Route path="/departments" element={<DepartmentsPage />} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+              </motion.div>
             </Suspense>
           </main>
         </div>
@@ -90,6 +98,8 @@ export const AppContent: React.FC = () => {
       }
     >
       <Routes>
+        {/* Public landing page - accessible to unauthenticated users */}
+        <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route
           path="/register"

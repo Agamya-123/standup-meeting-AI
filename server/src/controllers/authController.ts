@@ -794,6 +794,21 @@ export const updateEmployee = async (req: AuthRequest, res: Response): Promise<v
       finalRole = normalizeRole(role);
     }
 
+    // ADMIN role protection: Admins cannot demote themselves, and only other admins can remove admin privileges
+    if (targetCurrentRole === 'ADMIN') {
+      if (finalRole !== 'ADMIN') {
+        // Attempting to demote an admin
+        if (targetUserId === caller.id) {
+          res.status(403).json({ message: 'Access denied: You cannot remove your own admin privileges.' });
+          return;
+        }
+        if (callerRole !== 'ADMIN') {
+          res.status(403).json({ message: 'Access denied: Only another admin can remove admin privileges.' });
+          return;
+        }
+      }
+    }
+
     const roleChanged = finalRole !== targetUser.role;
     const teamChanged = finalTeamId !== targetUser.teamId;
 

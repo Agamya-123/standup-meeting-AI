@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  Activity,
   ShieldCheck,
   AlertCircle,
   ArrowRight,
@@ -132,15 +131,15 @@ export const Login: React.FC = () => {
       </div>
 
       <div className="w-full max-w-md z-10">
-        {/* Brand logo & Header */}
+        {/* Brand wordmark & Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/25 mb-3">
-            <Activity className="w-6 h-6" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Standup AI
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <Link
+            to="/"
+            className="inline-block text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight hover:opacity-70 transition-opacity"
+          >
+            Standup
+          </Link>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
             Async Engineering Alignment & Intelligent Blocker Resolution
           </p>
         </div>
