@@ -8,6 +8,25 @@ export default {
   theme: {
     extend: {
       colors: {
+        surface: '#10131a',
+        'surface-dim': '#10131a',
+        'surface-container-lowest': '#0b0e14',
+        'surface-container-low': '#191c22',
+        'surface-container': '#1d2026',
+        'surface-container-high': '#272a31',
+        'surface-container-highest': '#32353c',
+        'on-surface': '#e0e2eb',
+        'on-surface-variant': '#c3c6d7',
+        'primary-container': '#2563eb',
+        'secondary-container': '#3626ce',
+        'tertiary-container': '#007d55',
+        'tertiary': '#4edea3',
+        glass: {
+          dark: 'rgba(255,255,255,0.04)',
+          light: 'rgba(255,255,255,0.80)',
+          hoverDark: 'rgba(255,255,255,0.06)',
+          hoverLight: 'rgba(255,255,255,0.08)',
+        },
         dark: {
           950: '#07090e',
           900: '#0b0e14',
@@ -38,7 +57,8 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       boxShadow: {
         'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',

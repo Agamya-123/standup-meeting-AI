@@ -1198,17 +1198,29 @@ export const TeamsPage: React.FC = () => {
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                       Role / Position
                     </label>
-                    <select
-                      value={editMemberForm.role}
-                      onChange={(e) => setEditMemberForm({ ...editMemberForm, role: e.target.value as Role })}
-                      className="glass-input w-full cursor-pointer"
-                    >
-                      {assignableRoles.map((r) => (
-                        <option key={r.value} value={r.value}>
-                          {r.label}
-                        </option>
-                      ))}
-                    </select>
+                    {selectedMember?.id === currentUser.id && selectedMember?.role === 'ADMIN' ? (
+                      <>
+                        <div className="glass-input w-full flex items-center gap-2 opacity-70 cursor-not-allowed">
+                          <Crown className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Administrator</span>
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                          You cannot remove your own admin privileges. Only another admin can do that.
+                        </p>
+                      </>
+                    ) : (
+                      <select
+                        value={editMemberForm.role}
+                        onChange={(e) => setEditMemberForm({ ...editMemberForm, role: e.target.value as Role })}
+                        className="glass-input w-full cursor-pointer"
+                      >
+                        {assignableRoles.map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 )}
 

@@ -102,9 +102,9 @@ export const Register: React.FC = () => {
 
       <div className="w-full max-w-lg z-10">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/25 mb-3">
+          <Link to="/" className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/25 mb-3 hover:scale-105 transition-transform">
             <Activity className="w-6 h-6" />
-          </div>
+          </Link>
           <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Create a Company Workspace
           </h1>

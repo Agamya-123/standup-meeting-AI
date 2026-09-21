@@ -20,6 +20,11 @@ export const createAuthRateLimiter = (options: Partial<Options> = {}) =>
 /**
  * Strict rate limiter for authentication, registration, and identifier lookup routes.
  * Mitigates brute-force credential stuffing and identifier enumeration.
+ *
+ * `skipSuccessfulRequests` ensures only FAILED attempts (wrong password, unknown
+ * identifier) count toward the limit — a person legitimately signing in, or an
+ * identifier lookup that succeeds, is never penalized. This is what stops the
+ * "too many requests" error after a handful of normal logins.
  */
 export const authRateLimiter = createAuthRateLimiter({
   max:
@@ -27,7 +32,8 @@ export const authRateLimiter = createAuthRateLimiter({
     env.NODE_ENV === 'e2e' ||
     process.env.E2E_DISABLE_RATE_LIMIT === 'true'
       ? 10000
-      : 30,
+      : 50,
+  skipSuccessfulRequests: true,
   skip: () =>
     env.NODE_ENV === 'test' ||
     env.NODE_ENV === 'e2e' ||

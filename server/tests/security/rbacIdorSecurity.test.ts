@@ -78,7 +78,7 @@ describe('RBAC and IDOR security regressions', () => {
     expect(response.body).toEqual(expect.objectContaining({ status: 'error' }));
   });
 
-  it('keeps an administrator visible after changing them to a team lead', async () => {
+  it('prevents an administrator from removing their own admin privileges', async () => {
     const seeded = await seedTestCompany();
 
     const updateResponse = await request(app)
@@ -90,30 +90,19 @@ describe('RBAC and IDOR security regressions', () => {
         teamId: seeded.teams.backendTeam.id,
       });
 
-    expect(updateResponse.status).toBe(200);
-    expect(updateResponse.body.employee).toEqual(expect.objectContaining({
-      role: 'TEAM_LEAD',
-      departmentId: seeded.departments.engDept.id,
-      teamId: seeded.teams.backendTeam.id,
-    }));
+    expect(updateResponse.status).toBe(403);
+    expect(updateResponse.body.message).toContain('cannot remove your own admin privileges');
 
-    const freshLeadToken = createAuthToken({
-      ...seeded.users.admin,
-      role: 'TEAM_LEAD',
-      departmentId: seeded.departments.engDept.id,
-      teamId: seeded.teams.backendTeam.id,
+    const persistedAdmin = await prisma.user.findUniqueOrThrow({
+      where: { id: seeded.users.admin.id },
+      select: { role: true, departmentId: true, teamId: true },
     });
-    const rosterResponse = await request(app)
-      .get('/api/auth/employees')
-      .set('Authorization', `Bearer ${freshLeadToken}`);
-    const teamsResponse = await request(app)
-      .get('/api/teams')
-      .set('Authorization', `Bearer ${freshLeadToken}`);
 
-    expect(rosterResponse.status).toBe(200);
-    expect(rosterResponse.body.employees.map((employee: any) => employee.id)).toContain(seeded.users.admin.id);
-    expect(teamsResponse.status).toBe(200);
-    expect(teamsResponse.body.teams.map((team: any) => team.id)).toContain(seeded.teams.backendTeam.id);
+    expect(persistedAdmin).toEqual(expect.objectContaining({
+      role: 'ADMIN',
+      departmentId: null,
+      teamId: null,
+    }));
   });
 
   it('does not transfer designated lead ownership during a name-only edit', async () => {

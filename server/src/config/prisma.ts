@@ -15,6 +15,9 @@ export interface SqlitePragmaStatus {
  */
 export async function initSqlitePragmas(client: PrismaClient = prisma): Promise<SqlitePragmaStatus> {
   try {
+    // Force a connection to be established first
+    await client.$connect();
+
     // 1. Enable Write-Ahead Logging (WAL) for non-blocking concurrent reads
     await client.$queryRawUnsafe('PRAGMA journal_mode = WAL;');
 
